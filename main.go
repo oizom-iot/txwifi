@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"github.com/bhoriuchi/go-bunyan/bunyan"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/txn2/txwifi/iotwifi"
+	"github.com/kishanjoshi/iotwifi/iotwifi"
 )
 
 // ApiReturn structures a message for returned API calls.
@@ -25,7 +26,7 @@ type ApiReturn struct {
 func main() {
 
 	logConfig := bunyan.Config{
-		Name:   "txwifi",
+		Name:   "iotwifi",
 		Stream: os.Stdout,
 		Level:  bunyan.LogLevelDebug,
 	}
@@ -40,7 +41,7 @@ func main() {
 	messages := make(chan iotwifi.CmdMessage, 1)
 
 	cfgUrl := setEnvIfEmpty("IOTWIFI_CFG", "cfg/wificfg.json")
-	port := setEnvIfEmpty("IOTWIFI_PORT", "8080")
+	port := setEnvIfEmpty("IOTWIFI_PORT", "8082")
 
 	go iotwifi.RunWifi(blog, messages, cfgUrl)
 	wpacfg := iotwifi.NewWpaCfg(blog, cfgUrl)
@@ -99,7 +100,30 @@ func main() {
 			return
 		}
 
+		wpa_state := status["wpa_state"]
+		if wpa_state == "COMPLETED" {
+			fmt.Println("Connected")
+		} else {
+			fmt.Println("Disconnected")
+		}
+		fmt.Println(status)
+		fmt.Println("wpa_state", wpa_state)
+
 		apiPayloadReturn(w, "status", status)
+	}
+
+	createap := func(w http.ResponseWriter, r *http.Request) {
+		wpacfg.Disconnect()
+		wpacfg.StartAP()
+
+		apiPayloadReturn(w, "createap", "Creating hotspot")
+	}
+
+	disconnectHandler := func(w http.ResponseWriter, r *http.Request) {
+
+		wpacfg.Disconnect()
+
+		apiPayloadReturn(w, "Disconnect", "Success")
 	}
 
 	// handle /connect POSTs json in the form of iotwifi.WpaConnect
@@ -193,9 +217,11 @@ func main() {
 
 	// set app routes
 	r.HandleFunc("/status", statusHandler)
+	r.HandleFunc("/createap", createap)
 	r.HandleFunc("/connect", connectHandler).Methods("POST")
 	r.HandleFunc("/scan", scanHandler)
 	r.HandleFunc("/kill", killHandler)
+	r.HandleFunc("/disconnect", disconnectHandler)
 	http.Handle("/", r)
 
 	// CORS

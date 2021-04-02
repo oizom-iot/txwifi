@@ -7,6 +7,7 @@ package iotwifi
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -106,9 +107,6 @@ func RunWifi(log bunyan.Logger, messages chan CmdMessage, cfgLocation string) {
 	})
 
 	wpacfg := NewWpaCfg(log, cfgLocation)
-	wpacfg.StartAP()
-
-	time.Sleep(10 * time.Second)
 
 	command.StartWpaSupplicant()
 
@@ -117,6 +115,23 @@ func RunWifi(log bunyan.Logger, messages chan CmdMessage, cfgLocation string) {
 	wpacfg.ScanNetworks()
 
 	command.StartDnsmasq()
+
+	time.Sleep(10 * time.Second)
+	status, err := wpacfg.Status()
+
+	wpa_state := status["wpa_state"]
+	fmt.Println(status)
+	fmt.Println("wpa_state", wpa_state)
+
+	if wpa_state == "COMPLETED" {
+		fmt.Println("Connected")
+	} else {
+		fmt.Println("Disconnected")
+		fmt.Println("Creating ap")
+		wpacfg.StartAP()
+		time.Sleep(10 * time.Second)
+	}
+	fmt.Println("Now running main app")
 
 	// TODO: check to see if we are stuck in a scanning state before
 	// if in a scanning state set a timeout before resetting

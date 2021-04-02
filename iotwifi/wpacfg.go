@@ -3,6 +3,8 @@ package iotwifi
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -92,6 +94,16 @@ func (wpa *WpaCfg) StartAP() {
 		}
 	}()
 
+	hostname_file := "/cfg/hostname"
+	content, err := ioutil.ReadFile(hostname_file)
+
+	if err != nil {
+		wpa.Log.Fatal(err)
+	} else {
+		wpa.WpaCfg.HostApdCfg.Ssid = string(content)
+		wpa.Log.Info("Getting hostname from %s %s", hostname_file, string(content))
+	}
+
 	cfg := `interface=uap0
 ssid=` + wpa.WpaCfg.HostApdCfg.Ssid + `
 hw_mode=g
@@ -179,7 +191,7 @@ func (wpa *WpaCfg) ConnectNetwork(creds WpaCredentials) (WpaConnection, error) {
 	}
 	enableStatus := strings.TrimSpace(string(enableOut))
 	wpa.Log.Info("WPA enable got: %s", enableStatus)
-	
+
 	// 5. Select the new network
 	selectOut, err := exec.Command("wpa_cli", "-i", "wlan0", "select_network", net).Output()
 	if err != nil {
@@ -245,6 +257,18 @@ func (wpa *WpaCfg) Status() (map[string]string, error) {
 	cfgMap = cfgMapper(stateOut)
 
 	return cfgMap, nil
+}
+
+func (wpa *WpaCfg) Disconnect() {
+
+	fmt.Println("Disconnect")
+	disOut, _ := exec.Command("wpa_cli", "-i", "wlan0", "disconnect").Output()
+	fmt.Println(disOut)
+	removeOut, _ := exec.Command("wpa_cli", "-i", "wlan0", "remove_network", "0").Output()
+	fmt.Println(removeOut)
+	saveOut, _ := exec.Command("wpa_cli", "-i", "wlan0", "save_config").Output()
+	fmt.Println(saveOut)
+	return
 }
 
 // cfgMapper takes a byte array and splits by \n and then by = and puts it all in a map.
